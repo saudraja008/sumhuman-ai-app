@@ -41,51 +41,118 @@ export default function ImageReviewPage() {
     );
   };
 
-  const confirmDelete = async () => {
+  // const confirmDelete = async () => {
+  //   if (!marked.length) {
+  //     setToast('Please select at least one image before proceeding.');
+  //     setTimeout(() => setToast(''), 3000);
+  //     return;
+  //   }
+
+  //   const { data: resumeData, error: resumeError } = await supabase
+  //     .from('image_staging_for_review')
+  //     .select('resume_url')
+  //     .eq('session_id', sessionId)
+  //     .neq('resume_url', null)
+  //     .neq('resume_url', '')
+
+  //   const idsToDelete = images
+  //     .filter(img => !marked.includes(img.id))
+  //     .map(img => img.id);
+
+  //   if (idsToDelete.length) {
+  //     const { error } = await supabase
+  //       .from('image_staging_for_review')
+  //       .delete()
+  //       .in('id', idsToDelete);
+
+  //     if (error) {
+  //       console.error('Deletion error:', error);
+  //       alert('Failed to delete images');
+  //       return;
+  //     }
+  //   }
+
+  //   const updated = images.filter(img => marked.includes(img.id));
+  //   setImages(updated);
+  //   setMarked([]);
+  //   setCurrent(0);
+  //   setThumbStart(0);
+
+
+  //   if (resumeError) {
+  //     console.error('Failed to fetch resume URLs:', resumeError);
+  //   } else {
+  //     const resumeUrls = [...new Set(resumeData.map(row => row.resume_url))];
+    
+  //     if (resumeUrls.length) {
+  //       try {
+  //         await fetch('https://9iaealus91.execute-api.us-east-1.amazonaws.com/invoke-webhook', {
+  //           method: 'POST',
+  //           headers: { 'Content-Type': 'application/json' },
+  //           body: JSON.stringify({
+  //             urls: resumeUrls,
+  //             method: 'GET',
+  //             headers: {
+  //               'Content-Type': 'application/json',
+  //               'Authorization': 'Kulabrands1#',
+  //             },
+  //             payload: {
+  //               message: 'User confirmed images via Supabase resume_url fetch',
+  //             },
+  //           }),
+  //         });
+  //       } catch (err) {
+  //         console.error('Lambda resume_url call failed:', err);
+  //       }
+  //     }
+  //   }
+  // };
+
+  const confirmProceed = async () => {
     if (!marked.length) {
       setToast('Please select at least one image before proceeding.');
       setTimeout(() => setToast(''), 3000);
       return;
     }
-
-    const { data: resumeData, error: resumeError } = await supabase
-      .from('image_staging_for_review')
-      .select('resume_url')
-      .eq('session_id', sessionId)
-      .neq('resume_url', null)
-      .neq('resume_url', '')
-
-    const idsToDelete = images
-      .filter(img => !marked.includes(img.id))
-      .map(img => img.id);
-
-    if (idsToDelete.length) {
-      const { error } = await supabase
+  
+    setResubmitting(true);
+  
+    try {
+      const { data: resumeData, error: resumeError } = await supabase
         .from('image_staging_for_review')
-        .delete()
-        .in('id', idsToDelete);
-
-      if (error) {
-        console.error('Deletion error:', error);
-        alert('Failed to delete images');
-        return;
+        .select('resume_url')
+        .eq('session_id', sessionId)
+        .neq('resume_url', null)
+        .neq('resume_url', '');
+  
+      const idsToDelete = images
+        .filter(img => !marked.includes(img.id))
+        .map(img => img.id);
+  
+      if (idsToDelete.length) {
+        const { error } = await supabase
+          .from('image_staging_for_review')
+          .delete()
+          .in('id', idsToDelete);
+  
+        if (error) {
+          console.error('Deletion error:', error);
+          alert('Failed to delete images');
+          return;
+        }
       }
-    }
-
-    const updated = images.filter(img => marked.includes(img.id));
-    setImages(updated);
-    setMarked([]);
-    setCurrent(0);
-    setThumbStart(0);
-
-
-    if (resumeError) {
-      console.error('Failed to fetch resume URLs:', resumeError);
-    } else {
-      const resumeUrls = [...new Set(resumeData.map(row => row.resume_url))];
-    
-      if (resumeUrls.length) {
-        try {
+  
+      const updated = images.filter(img => marked.includes(img.id));
+      setImages(updated);
+      setMarked([]);
+      setCurrent(0);
+      setThumbStart(0);
+  
+      if (resumeError) {
+        console.error('Resume URL fetch error:', resumeError);
+      } else {
+        const resumeUrls = [...new Set(resumeData.map(row => row.resume_url))];
+        if (resumeUrls.length) {
           await fetch('https://9iaealus91.execute-api.us-east-1.amazonaws.com/invoke-webhook', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -97,17 +164,26 @@ export default function ImageReviewPage() {
                 'Authorization': 'Kulabrands1#',
               },
               payload: {
-                message: 'User confirmed images via Supabase resume_url fetch',
+                message: 'User confirmed images and started video generation',
               },
             }),
           });
-        } catch (err) {
-          console.error('Lambda resume_url call failed:', err);
         }
       }
+  
+      // Redirect to prompt page for video polling
+      setToast('🎬 Video generation started! Redirecting...');
+      setTimeout(() => {
+        window.location.href = '/prompt?mode=video';
+      }, 1500);
+  
+    } catch (err) {
+      console.error('Error during proceed flow:', err);
+    } finally {
+      setResubmitting(false);
     }
   };
-
+  
   const handlePromptResubmit = async (e) => {
     e.preventDefault();
     const promptText = e.target.prompt.value.trim();
@@ -302,7 +378,7 @@ export default function ImageReviewPage() {
 
           <div className="py-4 text-center">
             <button
-              onClick={confirmDelete}
+              onClick={confirmProceed}
               className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded text-white font-bold"
             >
               Proceed with images ({marked.length})
