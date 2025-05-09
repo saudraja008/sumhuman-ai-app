@@ -8,6 +8,7 @@ export default function PromptPage() {
   const [messages, setMessages] = useState([]);
   const [sessionId, setSessionId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState('image');
   const bottomRef = useRef(null);
   const hasSentReviewLink = useRef(false);
   const navigate = useNavigate();
@@ -18,12 +19,16 @@ export default function PromptPage() {
       navigate('/');
       return;
     }
-
+  
+    const urlParams = new URLSearchParams(window.location.search);
+    const modeParam = urlParams.get('mode') || 'image';
+    setMode(modeParam);
+  
     setMessages([{ role: 'user', text: `Email submitted by user: ${storedEmail}` }]);
     const existingSession = localStorage.getItem('session_id') || uuidv4();
     localStorage.setItem('session_id', existingSession);
     setSessionId(existingSession);
-  }, [navigate]);
+  }, [navigate]);  
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -51,59 +56,148 @@ export default function PromptPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // useEffect(() => {
+  //   if (!sessionId) return;
+  //   setLoading(true);
+
+  //   const startTime = Date.now();
+  //   const maxPollingDuration = 8 * 60 * 1000; // 10 minutes
+
+  //   const pollImages = setInterval(async () => {
+  //     try {
+  //       const elapsedTime = Date.now() - startTime;
+  //       if (elapsedTime > maxPollingDuration) {
+  //         clearInterval(pollImages);
+  //         setLoading(false);
+  //         return;
+  //       }
+    
+  //       const { data, error } = await supabase
+  //         .from('image_staging_for_review')
+  //         .select('id, image_url')
+  //         .eq('session_id', sessionId)
+  //         .order('created_at', { ascending: true });
+    
+  //       if (error) {
+  //         console.error('Supabase fetch error:', error);
+  //         return;
+  //       }
+    
+  //       if ((data && data.length > 10 && data && data.length < 100)  && !hasSentReviewLink.current) {
+  //         setMessages((prev) => [
+  //           ...prev,
+  //           { role: 'bot', text: '🖼️ Images have been generated successfully!' },
+  //           {
+  //             role: 'bot',
+  //             text: (
+  //               <a href="/review" className="text-blue-400 underline hover:text-blue-300">
+  //                 ✅ Click here to review your images
+  //               </a>
+  //             ),
+  //           },
+  //         ]);
+  //         hasSentReviewLink.current = true;
+  //         clearInterval(pollImages);
+  //         setLoading(false);
+  //       }
+  //     } catch (err) {
+  //       console.error('Polling failed:', err);
+  //       setLoading(false);
+  //     }
+  //   }, 4000);
+
+  //   return () => clearInterval(pollImages);
+  // }, [sessionId]);
+  
   useEffect(() => {
     if (!sessionId) return;
+  
+    const urlParams = new URLSearchParams(window.location.search);
+    const mode = urlParams.get('mode') || 'image';
+  
     setLoading(true);
-
     const startTime = Date.now();
-    const maxPollingDuration = 8 * 60 * 1000; // 10 minutes
+    const maxPollingDuration = 3 * 60 * 1000; // 3 minutes
+  
+    const pollInterval = setInterval(async () => {
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime > maxPollingDuration) {
+        clearInterval(pollInterval);
+        setLoading(false);
+        return;
+      }
+  
+      if (mode === 'video') {
+        const { data, error } = await supabase
+          .from('gen_video_urls')
+          .select('id, video_url').single()
 
-    const pollImages = setInterval(async () => {
-      try {
-        const elapsedTime = Date.now() - startTime;
-        if (elapsedTime > maxPollingDuration) {
-          clearInterval(pollImages);
-          setLoading(false);
+        console.log('Video data:', data);
+        if (error) {
+          console.error('Video polling error:', error);
           return;
         }
-    
+  
+        if (data?.video_url && !hasSentReviewLink.current) {
+          setMessages((prev) => [
+            ...prev,
+            { role: 'bot', text: '🎬 Your video has been generated!' },
+            {
+              role: 'bot',
+              text: (
+                <a
+                  href={data.video_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-green-400 underline hover:text-green-300"
+                >
+                  ▶️ Watch your video here
+                </a>
+              ),
+            },
+          ]);
+          hasSentReviewLink.current = true;
+          clearInterval(pollInterval);
+          setLoading(false);
+        }
+      } else {
         const { data, error } = await supabase
           .from('image_staging_for_review')
           .select('id, image_url')
           .eq('session_id', sessionId)
           .order('created_at', { ascending: true });
-    
+  
         if (error) {
-          console.error('Supabase fetch error:', error);
+          console.error('Image polling error:', error);
           return;
         }
-    
-        if ((data && data.length > 10 && data && data.length < 100)  && !hasSentReviewLink.current) {
+  
+        if (data && data.length > 10 && data.length < 100 && !hasSentReviewLink.current) {
           setMessages((prev) => [
             ...prev,
             { role: 'bot', text: '🖼️ Images have been generated successfully!' },
             {
               role: 'bot',
               text: (
-                <a href="/review" className="text-blue-400 underline hover:text-blue-300">
+                <a
+                  href="/review"
+                  className="text-blue-400 underline hover:text-blue-300"
+                >
                   ✅ Click here to review your images
                 </a>
               ),
             },
           ]);
           hasSentReviewLink.current = true;
-          clearInterval(pollImages);
+          clearInterval(pollInterval);
           setLoading(false);
         }
-      } catch (err) {
-        console.error('Polling failed:', err);
-        setLoading(false);
       }
     }, 4000);
-
-    return () => clearInterval(pollImages);
+  
+    return () => clearInterval(pollInterval);
   }, [sessionId]);
-
+  
   return (
     <div className="flex flex-col h-screen bg-[#121212] text-white">
       <header className="w-full border-b border-gray-700 bg-[#1f1f1f] py-4 shadow-md">
@@ -123,7 +217,11 @@ export default function PromptPage() {
 
       <main className="flex-1 overflow-y-auto w-full">
         <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
-          {loading && <div className="text-center text-gray-400 py-4">Looking for image results...</div>}
+          {loading && 
+            <div className="text-center text-gray-400 py-4">
+              {mode === 'video' ? 'Looking for video results...' : 'Looking for image results...'}
+            </div>
+          }
           {messages.map((msg, idx) => (
             <div
               key={idx}
