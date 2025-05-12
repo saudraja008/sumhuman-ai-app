@@ -124,11 +124,13 @@ export default function ImageReviewPage() {
         .eq('session_id', sessionId)
         .neq('resume_url', null)
         .neq('resume_url', '');
-  
+      
+      console.log('Resume data:', resumeData);
       const idsToDelete = images
         .filter(img => !marked.includes(img.id))
         .map(img => img.id);
-  
+      
+      console.log('IDs to delete:', idsToDelete);
       if (idsToDelete.length) {
         const { error } = await supabase
           .from('image_staging_for_review')
@@ -153,7 +155,7 @@ export default function ImageReviewPage() {
       } else {
         const resumeUrls = [...new Set(resumeData.map(row => row.resume_url))];
         if (resumeUrls.length) {
-          await fetch('https://9iaealus91.execute-api.us-east-1.amazonaws.com/invoke-webhook', {
+          await fetch('https://xg6pqkxzki.execute-api.us-east-1.amazonaws.com/generic-webhook-caller-lambda', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -228,7 +230,7 @@ export default function ImageReviewPage() {
         
         if (resumeUrls.length) {
           try {
-            await fetch('https://9iaealus91.execute-api.us-east-1.amazonaws.com/invoke-webhook', {
+            await fetch('https://xg6pqkxzki.execute-api.us-east-1.amazonaws.com/generic-webhook-caller-lambda', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
