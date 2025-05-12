@@ -130,7 +130,8 @@ export default function PromptPage() {
       if (mode === 'video') {
         const { data, error } = await supabase
           .from('gen_video_urls')
-          .select('id, video_url').single()
+          .select('id, video_url')
+          .eq('session_id', sessionId).single();
 
         console.log('Video data:', data);
         if (error) {
